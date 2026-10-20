@@ -63,14 +63,14 @@ function step(dt){
   const damp=fly?.99998:.99995;
   for(let i=1;i<=3;i++){
     const p=P[i],q=Q[i],ox=p.x,oy=p.y;
-    const vx=(p.x-q.x)*damp,vy=(p.y-q.y)*damp;
+    let vx=(p.x-q.x)*damp,vy=(p.y-q.y)*damp;const vm=Math.hypot(vx,vy),vcap=14*dt;if(vm>vcap){vx*=vcap/vm;vy*=vcap/vm}
     const fx=0;
     p.x+=vx+fx*dt*dt;p.y+=vy+G*dt*dt;q.x=ox;q.y=oy;
   }
   const ks=25,cx=fly?0:ax;
   if(!fly)couple(P[1],P[2],-cx*30-ks*rel(P[0],P[1],P[2]),dt);
   couple(P[2],P[3],-cx*30-ks*rel(P[1],P[2],P[3]),dt);
-  for(let it=0;it<12;it++){
+  for(let it=0;it<16;it++){
     if(!fly){P[0].x=0;P[0].y=0;link(P[0],P[1],L[0],true)}
     link(P[1],P[2],L[1],false);link(P[2],P[3],L[2],false);
     if(!fly){lim(0,-1,P[0],P[1],2.2,L[0]);lim(P[0].x,P[0].y,P[1],P[2],1.9,L[1]);lim(P[1].x,P[1].y,P[2],P[3],1.9,L[2])}
@@ -85,10 +85,11 @@ function step(dt){
 function jump(){
   if(state!=='swing')return;
   state='fly';$('help').style.display='none';
+  let mvx=0,mvy=0;for(let i=1;i<=3;i++){mvx+=(P[i].x-Q[i].x)/3;mvy+=(P[i].y-Q[i].y)/3}
   for(let i=1;i<=3;i++){
     const p=P[i],q=Q[i];
-    let vx=p.x-q.x;
-    let vy=p.y-q.y-1.5/480;
+    let vx=.5*(p.x-q.x)+.5*mvx;
+    let vy=.5*(p.y-q.y)+.5*mvy-1.5/480;
     q.x=p.x-vx;q.y=p.y-vy;
   }
 }
