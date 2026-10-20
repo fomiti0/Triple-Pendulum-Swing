@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ぐにゃぐにゃ三重ブランコジャンプ</title>
+<style>
+:root{--bg:#dff1ff;--fg:#1c2230;--card:rgba(255,255,255,.95);--ac:#e8553d;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10131c;--fg:#eef1f8;--card:rgba(28,33,48,.95)}}
+:root[data-theme="dark"]{--bg:#10131c;--fg:#eef1f8;--card:rgba(28,33,48,.95)}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;touch-action:none;user-select:none}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+#hud{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:12px;right:12px;display:flex;justify-content:space-between;font-weight:700;pointer-events:none;font-size:15px}
+#big{position:absolute;top:18%;width:100%;text-align:center;font-size:44px;font-weight:800;pointer-events:none;text-shadow:0 2px 8px rgba(0,0,0,.25)}
+#help{position:absolute;bottom:90px;width:100%;text-align:center;font-size:14px;opacity:.8;pointer-events:none}
+#pad{position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);left:0;right:0;display:flex;justify-content:center;gap:14px}
+#pad button{width:78px;height:62px;border:0;border-radius:14px;background:var(--card);color:var(--fg);font-size:20px;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+#pad button.j{background:var(--ac);color:#fff}
+#res{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35)}
+#res .box{background:var(--card);color:var(--fg);padding:24px 30px;border-radius:18px;text-align:center;min-width:240px}
+#res .d{font-size:46px;font-weight:800;margin:6px 0}
+#res a,#res button{display:inline-block;margin:6px 4px 0;padding:10px 18px;border-radius:10px;border:0;font-size:15px;font-weight:700;text-decoration:none;cursor:pointer}
+#tw{background:#111;color:#fff}#rt{background:var(--ac);color:#fff}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="hud"><span id="best">BEST 0.00 m</span><span id="dir"></span></div>
+<div id="big"></div>
+<div id="help">A / D でこぐ　W でジャンプ　（R でリトライ）</div>
+<div id="pad"><button id="bA">◀ A</button><button id="bW" class="j">W 跳ぶ</button><button id="bD">D ▶</button></div>
+<div id="res"><div class="box"><div>記録</div><div class="d" id="rd">0.00 m</div><div id="rb"></div>
+<a id="tw" target="_blank" rel="noopener">Xに投稿</a><button id="rt">もう一度</button></div></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+const L=[1,.9,.8],G=9.8,GY=3.1,SUB=8;
+let W,H,S,PY,P,Q,state,cam,landed,settle,flyT,best=0,keys={},last=0,dist=0;
+try{best=parseFloat(localStorage.getItem('swing_best'))||0}catch(e){}
+$('best').textContent='BEST '+best.toFixed(2)+' m';
+function resize(){const d=devicePixelRatio||1;W=innerWidth;H=innerHeight;cv.width=W*d;cv.height=H*d;ctx.setTransform(d,0,0,d,0,0);S=Math.min(H/4.6,W/6);PY=.8*S}
+addEventListener('resize',resize);resize();
+function reset(){
+  P=[{x:0,y:0}];let y=0;
+  for(let i=0;i<3;i++){y+=L[i];P.push({x:.04*(i+1),y})}
+  Q=P.map(p=>({x:p.x,y:p.y}));
+  state='swing';cam=0;landed=false;settle=0;flyT=0;dist=0;
+  $('res').style.display='none';$('help').style.display='';$('big').textContent='';$('dir').textContent='';
+}
+function lim(ax,ay,b,c,max,len){
+  const d1=Math.atan2(b.y-ay,b.x-ax),d2=Math.atan2(c.y-b.y,c.x-b.x);
+  let r=d2-d1;r=Math.atan2(Math.sin(r),Math.cos(r));
+  if(Math.abs(r)>max){r=Math.sign(r)*max;c.x=b.x+len*Math.cos(d1+r);c.y=b.y+len*Math.sin(d1+r)}
+}
+function link(a,b,len,fixA){
+  const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1e-6,k=(d-len)/d;
+  if(fixA){b.x-=dx*k;b.y-=dy*k}else{a.x+=dx*k*.5;a.y+=dy*k*.5;b.x-=dx*k*.5;b.y-=dy*k*.5}
+}
+function step(dt){
+  const ax=(keys.d?1:0)-(keys.a?1:0),fly=state==='fly';
+  const damp=fly?.99998:.99995;
+  for(let i=1;i<=3;i++){
+    const p=P[i],q=Q[i],ox=p.x,oy=p.y;
+    const vx=(p.x-q.x)*damp,vy=(p.y-q.y)*damp;
+    const fx=(!fly&&i>=2)?ax*12:0;
+    p.x+=vx+fx*dt*dt;p.y+=vy+G*dt*dt;q.x=ox;q.y=oy;
+  }
+  for(let it=0;it<12;it++){
+    if(!fly){P[0].x=0;P[0].y=0;link(P[0],P[1],L[0],true)}
+    link(P[1],P[2],L[1],false);link(P[2],P[3],L[2],false);
+    if(!fly){lim(0,-1,P[0],P[1],2.2,L[0]);lim(P[0].x,P[0].y,P[1],P[2],1.9,L[1]);lim(P[1].x,P[1].y,P[2],P[3],1.9,L[2])}
+    else lim(P[1].x,P[1].y,P[2],P[3],2.6,L[2]);
+    for(let i=1;i<=3;i++)if(P[i].y>GY){
+      P[i].y=GY;Q[i].y=GY;
+      Q[i].x=P[i].x-(P[i].x-Q[i].x)*(fly?.5:.9);
+      if(fly)landed=true;
+    }
+  }
+}
+function jump(){
+  if(state!=='swing')return;
+  state='fly';$('help').style.display='none';
+  for(let i=1;i<=3;i++){
+    const p=P[i],q=Q[i];
+    let vx=(p.x-q.x)*1.25+(Math.random()-.5)*7*i/SUB/60;
+    let vy=(p.y-q.y)*1.25-2.6/SUB/60+(Math.random()-.5)*6*i/SUB/60;
+    q.x=p.x-vx;q.y=p.y-vy;
+  }
+}
+function finish(){
+  state='done';dist=Math.abs(P[1].x);
+  let nb=dist>best;
+  if(nb){best=dist;try{localStorage.setItem('swing_best',String(best))}catch(e){}}
+  $('best').textContent='BEST '+best.toFixed(2)+' m';
+  $('rd').textContent=dist.toFixed(2)+' m';
+  $('rb').textContent=nb?'🎉 ベスト更新！':'ベスト '+best.toFixed(2)+' m';
+  $('tw').href='https://twitter.com/intent/tweet?text='+encodeURIComponent('ぐにゃぐにゃ三重ブランコからジャンプして '+dist.toFixed(2)+' m 飛んだ！ #ぐにゃぐにゃブランコ #三重ブランコ');
+  $('big').textContent='';$('res').style.display='flex';
+}
+const X=x=>W/2+(x-cam)*S,Y=y=>PY+y*S;
+function line(a,b,w,c){ctx.strokeStyle=c;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(X(a.x),Y(a.y));ctx.lineTo(X(b.x),Y(b.y));ctx.stroke()}
+function draw(){
+  const dark=matchMedia('(prefers-color-scheme: dark)').matches;
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,dark?'#0c1020':'#8fd0ff');g.addColorStop(1,dark?'#1c2440':'#e8f6ff');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  const gy=Y(GY);
+  ctx.fillStyle=dark?'#26402c':'#6cc070';ctx.fillRect(0,gy,W,H-gy);
+  ctx.fillStyle=dark?'#e8edf8':'#1c2230';ctx.font='12px sans-serif';ctx.textAlign='center';ctx.lineCap='round';
+  const x0=Math.floor((cam-W/S/2)/2)*2;
+  for(let m=x0;m<cam+W/S/2+2;m+=2){
+    const sx=X(m);ctx.fillRect(sx-1,gy,2,8);ctx.fillText(Math.abs(m)+'m',sx,gy+22);
+  }
+  line({x:-1.4,y:GY},{x:0,y:-.05},7,'#8a5a3a');line({x:1.4,y:GY},{x:0,y:-.05},7,'#8a5a3a');
+  if(state==='swing')line(P[0],P[1],3,'#555');
+  line(P[1],P[2],11,'#e8553d');line(P[2],P[3],9,'#3d6fe8');
+  ctx.fillStyle='#8a5a3a';ctx.fillRect(X(P[1].x)-14,Y(P[1].y)-3,28,6);
+  ctx.fillStyle='#ffd9a8';ctx.beginPath();ctx.arc(X(P[2].x),Y(P[2].y),.15*S,0,7);ctx.fill();
+  ctx.fillStyle='#222';ctx.beginPath();ctx.arc(X(P[3].x),Y(P[3].y),.07*S,0,7);ctx.fill();
+}
+function frame(now){
+  const dt=Math.min(.033,(now-last)/1000||.016);last=now;
+  if(state!=='done'){
+    for(let k=0;k<SUB;k++)step(dt/SUB);
+    if(state==='fly'){
+      flyT+=dt;
+      const mx=(P[1].x+P[2].x+P[3].x)/3;cam+=(mx-cam)*.08;
+      const cur=Math.abs(P[1].x);
+      $('big').textContent=cur.toFixed(2)+' m';$('dir').textContent=P[1].x<0?'◀ 左へ':'右へ ▶';
+      if(landed)settle+=dt;
+      if(settle>1.6||flyT>15)finish();
+    }
+  }
+  draw();requestAnimationFrame(frame);
+}
+const km={a:'a',arrowleft:'a',d:'d',arrowright:'d'};
+addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(km[k]){keys[km[k]]=true;e.preventDefault()}
+  else if(k==='w'||k==='arrowup'||k===' '){e.preventDefault();jump()}
+  else if(k==='r')reset();
+});
+addEventListener('keyup',e=>{const k=km[e.key.toLowerCase()];if(k)keys[k]=false});
+function hold(id,k){const b=$(id);
+  b.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true});
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>keys[k]=false))}
+hold('bA','a');hold('bD','d');
+$('bW').addEventListener('pointerdown',e=>{e.preventDefault();jump()});
+$('rt').addEventListener('click',reset);
+reset();requestAnimationFrame(frame);
+</script></body></html>
