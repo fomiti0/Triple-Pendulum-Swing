@@ -41,7 +41,7 @@ function reset(){
   P=[{x:0,y:0}];let y=0;
   for(let i=0;i<3;i++){y+=L[i];P.push({x:.04*(i+1),y})}
   Q=P.map(p=>({x:p.x,y:p.y}));
-  state='swing';cam=0;landed=false;settle=0;flyT=0;landT=0;dist=0;
+  state='swing';cam=0;landed=false;settle=0;flyT=0;landT=0;dist=0;Zm=1;
   $('res').style.display='none';$('fb').style.display='none';$('help').style.display='';$('big').textContent='';$('dir').textContent='';
 }
 function lim(ax,ay,b,c,max,len){
@@ -102,7 +102,7 @@ function finish(){
   $('tw').href='https://twitter.com/intent/tweet?text='+encodeURIComponent('ぐにゃぐにゃ三重ブランコからジャンプして '+dist.toFixed(2)+' m 飛んだ！ #三重ブランコ\nhttps://fomiti0.github.io/Triple-Pendulum-Swing/');
   $('big').textContent='';$('res').style.display='flex';
 }
-const X=x=>W/2+(x-cam)*S,Y=y=>PY+y*S;
+let Zm=1;const X=x=>W/2+(x-cam)*S*Zm,Y=y=>PY+GY*S-(GY-y)*S*Zm;
 function line(a,b,w,c){ctx.strokeStyle=c;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(X(a.x),Y(a.y));ctx.lineTo(X(b.x),Y(b.y));ctx.stroke()}
 function draw(){
   const dark=matchMedia('(prefers-color-scheme: dark)').matches;
@@ -112,15 +112,16 @@ function draw(){
   const gy=Y(GY);
   ctx.fillStyle=dark?'#26402c':'#6cc070';ctx.fillRect(0,gy,W,H-gy);
   ctx.fillStyle=dark?'#e8edf8':'#1c2230';ctx.font='12px sans-serif';ctx.textAlign='center';ctx.lineCap='round';
-  const x0=Math.floor((cam-W/S/2)/2)*2;
-  for(let m=x0;m<cam+W/S/2+2;m+=2){
+  const sc=S*Zm,stp=[2,5,10,20,50,100,200].find(v=>v*sc>=60)||200;
+  const x0=Math.floor((cam-W/sc/2)/stp)*stp;
+  for(let m=x0;m<cam+W/sc/2+stp;m+=stp){
     const sx=X(m);ctx.fillRect(sx-1,gy,2,8);ctx.fillText(Math.abs(m)+'m',sx,gy+22);
   }
   line({x:-1.4,y:GY},{x:0,y:-.05},7,'#8a5a3a');line({x:1.4,y:GY},{x:0,y:-.05},7,'#8a5a3a');
   if(state==='swing')line(P[0],P[1],3,'#555');
   line(P[1],P[2],11,'#e8553d');line(P[2],P[3],9,'#3d6fe8');
   ctx.fillStyle='#8a5a3a';ctx.fillRect(X(P[1].x)-14,Y(P[1].y)-3,28,6);
-  {const a=Math.atan2(P[2].y-P[1].y,P[2].x-P[1].x)-Math.PI/2,z=.5*S;ctx.save();ctx.translate(X(P[2].x),Y(P[2].y));ctx.rotate(a);
+  {const a=Math.atan2(P[2].y-P[1].y,P[2].x-P[1].x)-Math.PI/2,z=.5*S*Math.max(Zm,.45);ctx.save();ctx.translate(X(P[2].x),Y(P[2].y));ctx.rotate(a);
   if(FACE.complete&&FACE.naturalWidth){const zh=z*FACE.naturalHeight/FACE.naturalWidth;ctx.drawImage(FACE,-z/2,-zh/2,z,zh)}else{ctx.fillStyle='#f3e3c8';ctx.beginPath();ctx.arc(0,0,z*.4,0,7);ctx.fill()}
   ctx.restore()}
   ctx.fillStyle='#222';ctx.beginPath();ctx.arc(X(P[3].x),Y(P[3].y),.07*S,0,7);ctx.fill();
@@ -131,7 +132,10 @@ function frame(now){
     for(let k=0;k<SUB;k++)step(dt/SUB);
     if(state==='fly'){
       flyT+=dt;
-      const mx=(P[1].x+P[2].x+P[3].x)/3;cam+=(mx-cam)*.08;
+      const mx=(P[1].x+P[2].x+P[3].x)/3;cam+=(mx-cam)*.12;
+      let dx=0,ym=GY;for(let i=1;i<=3;i++){dx=Math.max(dx,Math.abs(P[i].x-cam));ym=Math.min(ym,P[i].y)}
+      const tz=Math.max(.06,Math.min(.6,(W/2*.7)/(S*Math.max(dx,.5)),(PY+GY*S)*.85/(S*Math.max(GY-ym,.5))));
+      Zm+=(Math.min(tz,Zm)-Zm)*.1;
       const cur=Math.abs(P[1].x);
       $('big').textContent=cur.toFixed(2)+' m';$('dir').textContent=P[1].x<0?'◀ 左へ':'右へ ▶';
       if(landed){landT+=dt;let mv=0;for(let i=1;i<=3;i++)mv=Math.max(mv,Math.hypot(P[i].x-Q[i].x,P[i].y-Q[i].y)*SUB/dt);if(mv<.2)settle+=dt;else settle=0}
