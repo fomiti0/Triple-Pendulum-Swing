@@ -6,7 +6,7 @@
 :root{--bg:#dff1ff;--fg:#1c2230;--card:rgba(255,255,255,.95);--ac:#e8553d;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10131c;--fg:#eef1f8;--card:rgba(28,33,48,.95)}}
 :root[data-theme="dark"]{--bg:#10131c;--fg:#eef1f8;--card:rgba(28,33,48,.95)}
-html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;touch-action:none;user-select:none}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 canvas{position:absolute;inset:0;width:100%;height:100%}
 #hud{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:12px;right:12px;display:flex;justify-content:space-between;font-weight:700;pointer-events:none;font-size:15px}
 #big{position:absolute;top:18%;width:100%;text-align:center;font-size:44px;font-weight:800;pointer-events:none;text-shadow:0 2px 8px rgba(0,0,0,.25)}
@@ -26,12 +26,12 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
 <div id="help">A / D でこぐ　W でジャンプ　（R でリトライ）</div>
 <div id="pad"><button id="bA">◀ A</button><button id="bW" class="j">W 跳ぶ</button><button id="bD">D ▶</button></div>
 <div id="res"><div class="box"><div>記録</div><div class="d" id="rd">0.00 m</div><div id="rb"></div>
-<a id="tw" target="_blank" rel="noopener">Xに投稿</a><button id="rt">もう一度</button></div></div>
+<a id="tw" target="_blank" rel="noopener">Xに投稿</a><button id="rt">もう一度</button><div id="fb" style="display:none"></div></div></div>
 <script>
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 const $=id=>document.getElementById(id);
 const L=[1,.9,.8],G=9.8,GY=3.1,SUB=8;
-let W,H,S,PY,P,Q,state,cam,landed,settle,flyT,best=0,keys={},last=0,dist=0;
+let W,H,S,PY,P,Q,state,cam,landed,settle,flyT,landT=0,best=0,keys={},last=0,dist=0;
 try{best=parseFloat(localStorage.getItem('swing_best'))||0}catch(e){}
 $('best').textContent='BEST '+best.toFixed(2)+' m';
 function resize(){const d=devicePixelRatio||1;W=innerWidth;H=innerHeight;cv.width=W*d;cv.height=H*d;ctx.setTransform(d,0,0,d,0,0);S=Math.min(H/4.6,W/6);PY=.8*S}
@@ -40,8 +40,8 @@ function reset(){
   P=[{x:0,y:0}];let y=0;
   for(let i=0;i<3;i++){y+=L[i];P.push({x:.04*(i+1),y})}
   Q=P.map(p=>({x:p.x,y:p.y}));
-  state='swing';cam=0;landed=false;settle=0;flyT=0;dist=0;
-  $('res').style.display='none';$('help').style.display='';$('big').textContent='';$('dir').textContent='';
+  state='swing';cam=0;landed=false;settle=0;flyT=0;landT=0;dist=0;
+  $('res').style.display='none';$('fb').style.display='none';$('help').style.display='';$('big').textContent='';$('dir').textContent='';
 }
 function lim(ax,ay,b,c,max,len){
   const d1=Math.atan2(b.y-ay,b.x-ax),d2=Math.atan2(c.y-b.y,c.x-b.x);
@@ -90,7 +90,7 @@ function finish(){
   $('best').textContent='BEST '+best.toFixed(2)+' m';
   $('rd').textContent=dist.toFixed(2)+' m';
   $('rb').textContent=nb?'🎉 ベスト更新！':'ベスト '+best.toFixed(2)+' m';
-  $('tw').href='https://twitter.com/intent/tweet?text='+encodeURIComponent('ぐにゃぐにゃ三重ブランコからジャンプして '+dist.toFixed(2)+' m 飛んだ！ #ぐにゃぐにゃブランコ #三重ブランコ');
+  $('tw').href='https://twitter.com/intent/tweet?text='+encodeURIComponent('ぐにゃぐにゃ三重ブランコからジャンプして '+dist.toFixed(2)+' m 飛んだ！ #三重ブランコ');
   $('big').textContent='';$('res').style.display='flex';
 }
 const X=x=>W/2+(x-cam)*S,Y=y=>PY+y*S;
@@ -123,8 +123,8 @@ function frame(now){
       const mx=(P[1].x+P[2].x+P[3].x)/3;cam+=(mx-cam)*.08;
       const cur=Math.abs(P[1].x);
       $('big').textContent=cur.toFixed(2)+' m';$('dir').textContent=P[1].x<0?'◀ 左へ':'右へ ▶';
-      if(landed)settle+=dt;
-      if(settle>1.6||flyT>15)finish();
+      if(landed){landT+=dt;let mv=0;for(let i=1;i<=3;i++)mv=Math.max(mv,Math.hypot(P[i].x-Q[i].x,P[i].y-Q[i].y)*SUB/dt);if(mv<.2)settle+=dt;else settle=0}
+      if(settle>.8||landT>12||flyT>40)finish();
     }
   }
   draw();requestAnimationFrame(frame);
@@ -143,5 +143,20 @@ function hold(id,k){const b=$(id);
 hold('bA','a');hold('bD','d');
 $('bW').addEventListener('pointerdown',e=>{e.preventDefault();jump()});
 $('rt').addEventListener('click',reset);
+$('tw').addEventListener('click',e=>{
+  e.preventDefault();
+  const t='ぐにゃぐにゃ三重ブランコからジャンプして '+dist.toFixed(2)+' m 飛んだ！ #三重ブランコ';
+  const u='https://twitter.com/intent/tweet?text='+encodeURIComponent(t);
+  let w=null;try{w=window.open(u,'_blank');if(w)w.opener=null}catch(_){}
+  if(w)return;
+  if(navigator.share){navigator.share({text:t}).then(()=>{},()=>{});return}
+  const fb=$('fb');fb.style.display='block';fb.innerHTML='';
+  const ta=document.createElement('textarea');ta.readOnly=true;ta.value=t;ta.style.cssText='width:100%;height:64px;box-sizing:border-box;margin-top:8px';
+  const m=document.createElement('div');m.style.cssText='font-size:13px;margin-top:4px';
+  m.textContent='Xを直接開けなかったので、この文章をコピーして投稿してください。';
+  fb.appendChild(ta);fb.appendChild(m);ta.focus();ta.select();
+  try{navigator.clipboard.writeText(t).then(()=>{m.textContent='投稿文をコピーしました。Xを開いて貼り付けてください。'}).catch(()=>{})}catch(_){}
+});
+addEventListener('contextmenu',e=>e.preventDefault());
 reset();requestAnimationFrame(frame);
 </script></body></html>
