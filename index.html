@@ -99,7 +99,7 @@ function finish(){
   $('best').textContent='BEST '+best.toFixed(2)+' m';
   $('rd').textContent=dist.toFixed(2)+' m';
   $('rb').textContent=nb?'🎉 ベスト更新！':'ベスト '+best.toFixed(2)+' m';
-  $('tw').href='https://twitter.com/intent/tweet?text='+encodeURIComponent('ぐにゃぐにゃ三重ブランコからジャンプして '+dist.toFixed(2)+' m 飛んだ！ #三重ブランコ');
+  $('tw').href='https://twitter.com/intent/tweet?text='+encodeURIComponent('ぐにゃぐにゃ三重ブランコからジャンプして '+dist.toFixed(2)+' m 飛んだ！ #三重ブランコ\nhttps://fomiti0.github.io/Triple-Pendulum-Swing/');
   $('big').textContent='';$('res').style.display='flex';
 }
 const X=x=>W/2+(x-cam)*S,Y=y=>PY+y*S;
@@ -156,7 +156,7 @@ $('bW').addEventListener('pointerdown',e=>{e.preventDefault();jump()});
 $('rt').addEventListener('click',reset);
 $('tw').addEventListener('click',e=>{
   e.preventDefault();
-  const t='ぐにゃぐにゃ三重ブランコからジャンプして '+dist.toFixed(2)+' m 飛んだ！ #三重ブランコ';
+  const t='ぐにゃぐにゃ三重ブランコからジャンプして '+dist.toFixed(2)+' m 飛んだ！ #三重ブランコ\nhttps://fomiti0.github.io/Triple-Pendulum-Swing/';
   const u='https://twitter.com/intent/tweet?text='+encodeURIComponent(t);
   let w=null;try{w=window.open(u,'_blank');if(w)w.opener=null}catch(_){}
   if(w)return;
