@@ -52,15 +52,23 @@ function link(a,b,len,fixA){
   const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1e-6,k=(d-len)/d;
   if(fixA){b.x-=dx*k;b.y-=dy*k}else{a.x+=dx*k*.5;a.y+=dy*k*.5;b.x-=dx*k*.5;b.y-=dy*k*.5}
 }
+function couple(a,b,f,dt){
+  const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,nx=-dy/d,ny=dx/d,k=f*dt*dt;
+  b.x+=nx*k;b.y+=ny*k;a.x-=nx*k;a.y-=ny*k;
+}
+const rel=(a,b,c)=>{const r=Math.atan2(c.y-b.y,c.x-b.x)-Math.atan2(b.y-a.y,b.x-a.x);return Math.atan2(Math.sin(r),Math.cos(r))};
 function step(dt){
   const ax=(keys.d?1:0)-(keys.a?1:0),fly=state==='fly';
   const damp=fly?.99998:.99995;
   for(let i=1;i<=3;i++){
     const p=P[i],q=Q[i],ox=p.x,oy=p.y;
     const vx=(p.x-q.x)*damp,vy=(p.y-q.y)*damp;
-    const fx=(!fly&&i>=2)?ax*12:0;
+    const fx=0;
     p.x+=vx+fx*dt*dt;p.y+=vy+G*dt*dt;q.x=ox;q.y=oy;
   }
+  const ks=25,cx=fly?0:ax;
+  if(!fly)couple(P[1],P[2],-cx*30-ks*rel(P[0],P[1],P[2]),dt);
+  couple(P[2],P[3],-cx*30-ks*rel(P[1],P[2],P[3]),dt);
   for(let it=0;it<12;it++){
     if(!fly){P[0].x=0;P[0].y=0;link(P[0],P[1],L[0],true)}
     link(P[1],P[2],L[1],false);link(P[2],P[3],L[2],false);
@@ -78,8 +86,8 @@ function jump(){
   state='fly';$('help').style.display='none';
   for(let i=1;i<=3;i++){
     const p=P[i],q=Q[i];
-    let vx=(p.x-q.x)*1.25+(Math.random()-.5)*7*i/SUB/60;
-    let vy=(p.y-q.y)*1.25-2.6/SUB/60+(Math.random()-.5)*6*i/SUB/60;
+    let vx=p.x-q.x;
+    let vy=p.y-q.y-1.5/480;
     q.x=p.x-vx;q.y=p.y-vy;
   }
 }
